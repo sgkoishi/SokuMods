@@ -4,13 +4,48 @@
 #include <SokuLib.hpp>
 #include <DrawUtils.hpp>
 
-namespace PunishDisplay {
+#define FONT_HEIGHT 20
+#define TEXTURE_SIZE 0x100
 
-void drawPunish(SokuLib::CharacterManager &chr, int xOffset)
+namespace PunishDisplay
 {
-	SokuLib::DrawUtils::Texture punishText;
-	punishText.createFromText("Punish!", null, new SokuLib::Vector2<unsigned>(), new SokuLib::Vector2<unsigned>());
+static SokuLib::SWRFont font;
+static int yOffset = 70;
+static int timer1 = 0;
+static int timer2 = 0;
 
+static float getAlpha(unsigned timer)
+{
+	if (timer < 5)
+	{
+		return timer / 5.f;
+	}
+	if (timer > 180)
+	{
+		return 1 - (timer - 180) / 60.f;
+	}
+	return 1.f;
+}
+
+void showBox(int xOffset, float alpha, SokuLib::DrawUtils::DxSokuColor color)
+{
+	if (alpha == 0)
+		return;
+
+	SokuLib::DrawUtils::Sprite sprite;
+	int text;
+	char buffer[] = "Punish!";
+	if (!SokuLib::textureMgr.createTextTexture(&text, buffer, font, TEXTURE_SIZE, FONT_HEIGHT + 18, nullptr, nullptr))
+	{
+		return;
+	}
+
+	font.create();
+	sprite.setPosition({xOffset, yOffset});
+	sprite.texture.setHandle(text, {TEXTURE_SIZE, FONT_HEIGHT + 18});
+	sprite.rect = {0, 0, TEXTURE_SIZE, FONT_HEIGHT + 18};
+	sprite.tint = color * alpha;
+	sprite.draw();
 }
 
 static int (SokuLib::CharacterManager::*original_onHit)(int param);
@@ -24,28 +59,25 @@ void checkPunish()
 {
 	bool p1CanBlock = SokuLib::getBattleMgr().leftCharacterManager.canBlock;
 	bool p2CanBlock = SokuLib::getBattleMgr().rightCharacterManager.canBlock;
-	bool p1IsHit = false;
-	bool p2IsHit = false;
 
 	if (!p1CanBlock)
 	{
-		p1IsHit = isHit(SokuLib::getBattleMgr().leftCharacterManager);
+		if(isHit(SokuLib::getBattleMgr().leftCharacterManager))
+		{
+			showBox(40, getAlpha(timer1), SokuLib::DrawUtils::DxSokuColor::White);
+		}
 	}
+
 	if (!p2CanBlock)
 	{
-		p2IsHit = isHit(SokuLib::getBattleMgr().leftCharacterManager);
+		if (isHit(SokuLib::getBattleMgr().leftCharacterManager))
+		{
+			showBox(600, getAlpha(timer2), SokuLib::DrawUtils::DxSokuColor::White);
+		}
 	}
 
-	if (p1IsHit)
-	{
-		drawPunish(SokuLib::getBattleMgr().leftCharacterManager, 100);
-	}
-	if (p2IsHit)
-	{
-		drawPunish(SokuLib::getBattleMgr().rightCharacterManager, 500);
-	}
-
-	isHit(SokuLib::getBattleMgr().rightCharacterManager);
+	++timer1;
+	++timer2;
 }
 
 void placeHooks()
@@ -53,15 +85,6 @@ void placeHooks()
 	DWORD old;
 	VirtualProtect((PVOID)0x47c5aa, 4, PAGE_EXECUTE_WRITECOPY, &old);
 	original_onHit = SokuLib::union_cast<int (SokuLib::CharacterManager::*)(int)>(SokuLib::TamperNearJmpOpr(0x47c5a9, reinterpret_cast<DWORD>(isHit)));
-	VirtualProtect((PVOID)0x47c5aa, 4, old, &old);
-
-}
-
-void removeHooks() // is it necessary?
-{
-	DWORD old;
-	VirtualProtect((PVOID)0x47c5aa, 4, PAGE_EXECUTE_WRITECOPY, &old);
-	SokuLib::TamperNearJmpOpr(0x47c5a9, SokuLib::union_cast<DWORD>(original_onHit));
 	VirtualProtect((PVOID)0x47c5aa, 4, old, &old);
 }
 
@@ -73,6 +96,7 @@ extern "C" __declspec(dllexport) bool CheckVersion(const BYTE hash[16])
 extern "C" __declspec(dllexport) bool Initialize(HMODULE hMyModule, HMODULE hParentModule)
 {
 	placeHooks();
+	checkPunish();
 	return true;
 }
 
