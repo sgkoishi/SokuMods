@@ -19,7 +19,7 @@ jobs:
 
       - name: Build
         run: |
-          cmake -A Win32 .
+          cmake -A Win32 -DCMAKE_BUILD_TYPE=Release .
           cmake --build .
           cmake --install .
 
