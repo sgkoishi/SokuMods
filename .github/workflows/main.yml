@@ -1,0 +1,42 @@
+name: Main
+
+on: [push, pull_request]
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: 'recursive'
+
+      - name: Build
+        run: |
+          cmake -A Win32 .
+          cmake --build .
+          cmake --install .
+
+      - name: Set env output and package
+        id: setenvo
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          echo "TAG_NAME=$(git rev-list --count HEAD)" >> $env:GITHUB_OUTPUT
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        with:
+          prerelease: true
+          tag_name: v${{ steps.setenvo.outputs.TAG_NAME }}
+          target_commitish: ${{ github.sha }}
+          name: Release v${{ steps.setenvo.outputs.TAG_NAME }}
+          files: |
+            Artifact.tar
+            Artifact.zip
